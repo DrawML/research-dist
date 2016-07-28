@@ -1,6 +1,128 @@
 import zmq
 import time
 
+class Client:
+    def __init__(self, addr):
+       self.id = addr 
+
+class Task:
+    def __init__(self, job, client):
+        self.job = job
+        self.client = client;
+
+class Worker:
+    def __init__(self, addr, level):
+        self.id = addr
+        self.level = level
+
+class WorkerQueue:
+    def __init__(self):
+        self.queue = []
+
+    def enqueue(self, worker):
+        self.queue.append(worker)
+        self.__sort()
+
+    def dequeue(self):
+        return self.queue.pop()
+
+    def __sort(self):
+        from operator import attrgetter
+        self.queue.sort(key=attrgetter('level'), reverse=True)
+
+    def __len__(self):
+        return len(self.queue)
+
+class TaskQueue:
+    def __init__(self):
+        self.queue = []
+
+    def enqueue(self, task):
+        self.queue.append(task)
+
+    def dequeue(self):
+        return self.queue.pop()
+
+    def __len__(self):
+        return len(self.queue)
+
+
+def resolve_worker_msg(msg):
+    worker_addr = msg[0]
+    assert msg[1] == b""
+    worker_level = msg[2]
+    assert msg[3] == b""
+    client_addr = msg[4] if msg[4] != b"READY" else None
+    reply = None
+
+    if client_addr:
+        assert msg[5] == b""
+        reply = msg[6]
+
+    return (worker_addr, worker_level, client_addr, reply)
+
+def resolve_client_msg(msg):
+    client_addr, empty, request = msg
+    assert empty == b""
+
+    return (client_addr, request)
+
+
+def make_msg(*content):
+    msg = []
+    for c in content:
+        msg.append(c)
+        msg.append(b'')
+    msg.pop()
+    return msg 
+
+
+def send_worker(addr, *content):
+    msg = make_msg(addr, *content)
+    worker_router.send_multipart(msg)
+
+def reply_client(addr, reply):
+    msg = make_msg(addr, reply)
+    client_router.send_multipart(msg)
+
+
+def request_work():
+    if len(task_queue) > 0 and len(worker_queue) > 0:
+        task = task_queue.dequeue()
+        worker = worker_queue.dequeue()
+        send_worker(worker.id, task.client.id, task.job)
+        logger("master", "ROUTING", "{0} -> {1}".format(task.client.id, worker.id))
+
+    elif len(task_queue) == 0:
+        logger("master", "QUEUEING", "Worker is enqueued.")
+    elif len(worker_queue) == 0:
+        logger("master", "QUEUEING", "Task is enqueued.")
+
+def handle_worker(msg):
+    # expected msg schema
+    worker_addr, worker_level, client_addr, reply = resolve_worker_msg(msg)
+
+    worker = Worker(worker_addr, worker_level)
+    worker_queue.enqueue(worker)
+
+    if client_addr:
+        reply_client(client_addr, reply)
+        logger("master", "ROUTING", "{0} -> {1}".format(worker.id, client_addr))
+    else:
+        logger("master", "QUEUEING", "{0} is ready.".format(worker.id)) # improve
+
+def handle_client(msg):
+    # expected msg schema
+    client_addr, request = resolve_client_msg(msg)
+
+    task = Task(request, Client(client_addr))
+    task_queue.enqueue(task)
+
+
+def logger(tag, action, msg):
+    print("[%s/%s] %s" % (tag, action, msg))
+
+
 context = zmq.Context()
 
 client_url = "tcp://*:5555"
@@ -16,56 +138,27 @@ poller = zmq.Poller()
 poller.register(client_router, zmq.POLLIN)
 poller.register(worker_router, zmq.POLLIN)
 
-client_n = 0
-worker_queue = []
-client_queue = []
-
-def logger(tag, action, msg):
-    print("[%s/%s] %s" % (tag, action, msg))
+worker_queue = WorkerQueue() 
+task_queue = TaskQueue() 
 
 while True:
     # logger("master", "POLLING", "waiting...")
     socks = dict(poller.poll())
 
-    if worker_router in socks and socks[worker_router] == zmq.POLLIN:
+    if socks.get(worker_router) == zmq.POLLIN:
         msg = worker_router.recv_multipart()
+        handle_worker(msg)
 
-        worker_addr = msg[0]
+    if socks.get(client_router) == zmq.POLLIN:
+        msg = client_router.recv_multipart()
+        handle_client(msg)
 
-        if len(client_queue) > 0:
-            (client_addr, request) = client_queue.pop()
-            worker_router.send_multipart([worker_addr, b"", client_addr, b"", request])
-        else:
-            worker_queue.append(worker_addr)
+    request_work()
 
-        assert msg[1] == b""
-        client_addr = msg[2]
-
-        if client_addr != b"READY":
-            assert msg[3] == b""
-            reply = msg[4]
-
-            client_router.send_multipart([client_addr, b"", reply])
-            client_n -= 1
-            logger("master", "ROUTING", "Worker#{0} -> Client#{1}".format(worker_addr, client_addr))
-        else:
-            logger("master", "QUEUEING", "Worker#{0} is ready.".format(worker_addr)) # improve
-
-    if client_router in socks and socks[client_router] == zmq.POLLIN:
-        [client_addr, empty, request] = client_router.recv_multipart()
-
-        assert empty == b""
-
-        if len(worker_queue) > 0:
-            worker_addr = worker_queue.pop()
-            worker_router.send_multipart([worker_addr, b"", client_addr, b"", request])
-            logger("master", "ROUTING", "Client#{0} -> Worker#{1}".format(client_addr, worker_addr))
-        else:
-            client_queue.append((client_addr, request)) # problem: have to keep data
-            logger("master", "QUEUEING", "Client#{0} is enqueued.".format(client_addr))
 
 time.sleep(1)
 
 client_router.close()
 worker_router.close()
 context.term()
+

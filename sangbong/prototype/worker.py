@@ -8,7 +8,9 @@ def worker_thread(_url, context, i):
     master.identity = ("Worker-%d" % i).encode('ascii')
     master.connect(_url)
 
-    master.send(b'READY')
+    # [performance, status]
+    master.send_multipart([i.to_bytes(1, 'little'), b"", b'READY'])
+    print("[%s] I'm ready..." % (master.identity.decode('ascii')))
 
     while True:
         [client_addr, empty, request] = master.recv_multipart()
@@ -24,7 +26,7 @@ def worker_thread(_url, context, i):
                                                     client_addr.decode('ascii'),
                                                     request.decode('ascii')))
 
-        master.send_multipart([client_addr, b"", b"FINISH"])
+        master.send_multipart([i.to_bytes(1, 'little'), b"", client_addr, b"", b"FINISH"])
 
 context = zmq.Context()
 master_url = "tcp://localhost:5556"
