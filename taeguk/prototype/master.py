@@ -2,6 +2,12 @@
 #-*- coding: utf-8 -*-
 
 """
+Assumption :
+1. Master never die.
+
+"""
+
+"""
 Disconnection process will be added....
 """
 
