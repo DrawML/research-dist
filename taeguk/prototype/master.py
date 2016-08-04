@@ -29,6 +29,7 @@ client : task를 던지는 자.
     slave에게 표시를 해둔다.
 3. 일정 시간 이상 slave와 통신불능일 떼,
     slave와 통신이 영구적으로 끊켰다고 보고, slave와의 연결을 해제하고 관련 처리를 한다.
+
 4. client와 통신이 잘 안 될때, 일정시간 이상 client와 통신 불능일 때,
     slave와 비슷한 방식으로 처리.
 5. client에게 task result를 response해야하는데, 통신불능일 떼,
@@ -36,6 +37,7 @@ client : task를 던지는 자.
 """
 
 import zmq
+from enum import Enum
 
 class Client(object):
     def __init__(self, addr):
@@ -167,6 +169,13 @@ class SlaveManager(object):
         else:
             # error.
             raise ValueError("Non-existent Slave.")
+
+    def start_heartbeat(self):
+
+        def beat():
+
+        self.caller = zmq.eventloop.ioloop.PeriodicCallback(self.beat, period, self.loop)
+        self.caller.start()
 
 class TaskQueue(object):
     def __init__(self):
