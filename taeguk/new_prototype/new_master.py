@@ -7,6 +7,36 @@ import zmq
 from zmq.asyncio import Context, ZMQEventLoop
 import asyncio
 
+"""
+현재 진행도
+기본적인 master의 구현완료. 그러나 아직 테스트가 안됨. 버그가 많을 것임.
+"""
+
+"""
+앞으로 해야할 것.
+- 현재 master의 테스트 및 버그 수정.
+- connection management 추가 (heartbeat, ...)
+- resource monitoring 기능 추가
+- protobuf를 이용한 프로토콜 구조화
+- exception class 설계 및 detail한 exception 처리.
+- 모듈별로 분할. (여러개 파일로 분할)
+"""
+
+"""
+나중에 다시 생각해 볼 것들)
+
+1. client도 task를, task도 client를 가지고 있는 구조에 대한 고찰.
+(task만 client를 가지고 있는 식으로 변경하는 게 옳을 것 같음.)
+(slave와 task에 대해서도 같은 이슈가 존재.)
+task만 client, slave를 가지고 있는 쪽이 훨씬 더 구조상 안정적이고 버그발생가능성이 낮을 것 같다.
+
+2. Network관련 부분을 따로 독립하는게 낫지 않나?? 그렇다면 어떻게??
+
+3. 의존성 문제에 대한 고려.
+의존성 관계가 어떻게 되는지 분석하고 문제가 있으면 고친다.
+
+"""
+
 
 class ClientIdentity(object):
     def __init__(self, addr):
@@ -138,15 +168,21 @@ class SlaveManager(object):
         else:
             raise ValueError("Non-existent Slave.")
 
-    # Get available slave for processing task.
-    def get_slave(self, task):
+    # Get proper slave for task.
+    def get_proper_slave(self, task):
+
         # some algorithms will be filled in here.
-        available_slaves = [w for w in self._slaves if w.doing_task is None]
-        if not available_slaves:
+        proper_slave = None
+        for slave in self._slaves:
+            if slave.tasks_count() >= 3:
+                continue
+            if proper_slave is None or proper_slave.tasks_count() < slave.tasks_count():
+                proper_slave = slave
+
+        if proper_slave is None:
             raise Exception("Not available Slaves.")
-        import random
-        slave = random.choice(available_slaves)
-        return slave
+        else:
+            return proper_slave
 
 
 class TaskIdentity(object):
@@ -192,7 +228,7 @@ class TaskIdentity(object):
 
 class Task(TaskIdentity):
 
-    STATUS_NO_REGISTERED = 0
+    STATUS_NOT_REGISTERED = 0
     STATUS_WAITING = 1
     STATUS_PROCESSING = 2
     STATUS_COMPLETE = 3
@@ -202,7 +238,7 @@ class Task(TaskIdentity):
         self._client = client
         self._req_id = req_id
         self._tag = tag
-        self._status = Task.STATUS_NO_REGISTERED
+        self._status = Task.STATUS_NOT_REGISTERED
 
     @property
     def client(self):
@@ -225,6 +261,14 @@ class Task(TaskIdentity):
         self._status = status
 
     @property
+    def job(self):
+        raise NotImplementedError("This function must be override.")
+
+    @job.setter
+    def job(self, job):
+        raise NotImplementedError("This function must be override.")
+
+    @property
     def result(self):
         raise NotImplementedError("This function must be override.")
 
@@ -232,23 +276,75 @@ class Task(TaskIdentity):
     def result(self, result):
         raise NotImplementedError("This function must be override.")
 
+    def set_result_from_bytes(self, bytes):
+        raise NotImplementedError("This function must be override.")
+
+
+class TaskJob(object):
+    def to_bytes(self):
+        raise NotImplementedError("This function must be override.")
+
+    def from_bytes(self):
+        raise NotImplementedError("This function must be override.")
+
+
+class TaskResult(object):
+    def to_bytes(self):
+        raise NotImplementedError("This function must be override.")
+
+    def from_bytes(self):
+        raise NotImplementedError("This function must be override.")
+
+
+class SleepTaskJob(TaskJob):
+    def __init__(self, seconds : int):
+        super().__init__()
+        self._seconds = seconds
+
+    def to_bytes(self) -> bytes:
+        return self._seconds.to_bytes(4, byteorder='big')
+
+    @staticmethod
+    def from_bytes(self, bytes : bytes) -> 'SleepTaskJob':
+        return SleepTaskJob.__init__(int.from_bytes(bytes[0:4], byteorder='big'))
+
+
+class SleepTaskResult(TaskResult):
+    def __init__(self, comment : str):
+        super().__init__()
+        self._comment = comment
+
+    def to_bytes(self) -> bytes:
+        return self._comment.encode(encoding='utf-8')
+
+    @staticmethod
+    def from_bytes(self, bytes : bytes) -> 'SleepTaskResult':
+        return SleepTaskResult.__init__(bytes.decode(encoding='utf-8'))
+
 
 class SleepTask(Task):
-    def __init__(self, seconds, client, req_id, tag = None):
+    def __init__(self, job, client, req_id, tag = None):
         super().__init__(client, req_id, tag)
-        self._seconds = seconds
+        self._job = job
 
     @property
     def seconds(self):
         return self._seconds
 
     @property
+    def job(self):
+        return self._job
+
+    @property
     def result(self):
         return self._result
 
     @result.setter
-    def result(self, result):
+    def result(self, result : SleepTaskJob):
         self._result = result
+
+    def set_result_from_bytes(self, bytes):
+        self.result = SleepTaskResult.from_bytes(bytes)
 
 
 class TaskManager(object):
@@ -293,14 +389,31 @@ class TaskManager(object):
         else:
             raise ValueError("Non-existent Task.")
 
+    def assign_waiting_tasks(self):
+        for task in self._waiting_tasks:
+            client = task.client
+            try:
+                slave = slave_manager.get_proper_slave(task)
+            except Exception as err:
+                print("[!]", err)
+            slave.assign_task(task)
+            self.change_task_status(task, Task.STATUS_PROCESSING)
+
+            reply_body = task.req_id.to_bytes(4, byteorder='big')
+            client_router.dispatch_msg(client.addr, b"TaskStart", reply_body)
+            request_body = task.id.to_bytes(4, byteorder='big')
+            slave_router.dispatch_msg(slave.addr, b"TaskRequest", request_body)
+
     def report_complete_tasks(self):
         for task in self._complete_tasks:
             client = task.client
-            reply_body = task.req_id.to_bytes(4, byteorder='big')
-            reply_body += task.result   # conversion is needed.
             client.lose_task(task)
-            client_router.dispatch_msg(client.addr, b"TaskFinish", reply_body)
             self._all_tasks.remove(task)
+
+            reply_body = task.req_id.to_bytes(4, byteorder='big')
+            reply_body += task.result.to_bytes()
+            client_router.dispatch_msg(client.addr, b"TaskFinish", reply_body)
+
         self._complete_tasks.clear()
 
 
@@ -333,8 +446,8 @@ class ClientRouter(object):
             client = client_manager.find_client(client_identity)
 
             req_id = int.from_bytes(body[0:4])
-            seconds = int.from_bytes(body[4:8])
-            task = SleepTask(seconds, client, req_id)
+            job = SleepTaskJob.from_bytes(body[4:8])
+            task = SleepTask(job, client, req_id)
 
             reply_body = req_id.to_bytes(4, byteorder='big')
             self.dispatch_msg(client.addr, b"TaskAccept", reply_body)
@@ -388,10 +501,10 @@ class SlaveRouter(object):
 
         elif header == "TaskFinish":
             task_id = int.from_bytes(body[0:4])
-            task_result = int.from_bytes(body[4:])
 
             task_identity = TaskIdentity(task_id)
-            task_manager.find_task(task_identity).result = task_result      # conversion is needed.
+            task = task_manager.find_task(task_identity).result
+            task.set_result_from_bytes(body[4:])
 
             slave = slave_manager.find_slave(slave_identity)
             slave.delete_task(task_identity)
@@ -432,6 +545,7 @@ class Scheduler(object):
         self._report_complete_task_to_client()
 
     def _assign_waiting_task_to_slave(self):
+        task_manager.assign_waiting_tasks()
         pass
 
     def _report_complete_task_to_client(self):
