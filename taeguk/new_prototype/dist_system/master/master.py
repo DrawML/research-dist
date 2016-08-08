@@ -52,7 +52,9 @@ class ClientRouter(object):
         self._router.bind(self._addr)
 
         while True:
+            print("[Client Router] before recv.")
             msg = await self._router.recv_multipart()
+            print("[Client Router] after recv.")
             await self._process(msg)
 
     async def _process(self, msg):
@@ -61,9 +63,11 @@ class ClientRouter(object):
         client_identity = ClientIdentity(addr)
 
         if header == b"Register":
+            print("[Client Router] Register packet in.")
             client_manager.add_client(client_identity)
 
         elif header == b"SleepTask":
+            print("[Client Router] SleepTask packet in.")
             client = client_manager.find_client(client_identity)
 
             req_id = int.from_bytes(body[0:4])
@@ -82,16 +86,16 @@ class ClientRouter(object):
 
     def _resolve_msg(self, msg):
         addr = msg[0]
-        assert msg[1] == b""
+        assert msg[1] == b''
         header = msg[2]
-        assert msg[3] == b""
+        assert msg[3] == b''
         body = msg[4]
 
         return addr, header, body
 
-    def dispatch_msg(self, addr, header, body = b""):
+    def dispatch_msg(self, addr, header, body = b''):
 
-        async def _dispatch_msg(self, msg):
+        async def _dispatch_msg(msg):
             await self._router.send_multipart(msg)
 
         msg = [addr, b'', header, b'', body]
@@ -108,8 +112,10 @@ class SlaveRouter(object):
         self._router.bind(self._addr)
 
         while True:
+            print("[Slave Router] before recv.")
             msg = await self._router.recv_multipart()
-            await self._process()
+            print("[Slave Router] after recv.")
+            await self._process(msg)
 
     async def _process(self, msg):
         addr, header, body = self._resolve_msg(msg)
@@ -117,10 +123,12 @@ class SlaveRouter(object):
         slave_identity = SlaveIdentity(addr)
 
         if header == b"Register":
+            print("[Slave Router] Register packet in.")
             slave_manager.add_slave(slave_identity)
             scheduler.invoke()
 
         elif header == b"TaskFinish":
+            print("[Slave Router] TaskFinish packet in.")
             task_id = int.from_bytes(body[0:4])
 
             task_identity = TaskIdentity(task_id)
@@ -136,18 +144,18 @@ class SlaveRouter(object):
         else:
             raise ValueError("Invalid Header.")
 
-    def _resolve_msg(msg):
+    def _resolve_msg(self, msg):
         addr = msg[0]
-        assert msg[1] == b""
+        assert msg[1] == b''
         header = msg[2]
-        assert msg[3] == b""
+        assert msg[3] == b''
         body = msg[4]
 
         return addr, header, body
 
-    def dispatch_msg(self, addr, header, body = b""):
+    def dispatch_msg(self, addr, header, body = b''):
 
-        async def _dispatch_msg(self, msg):
+        async def _dispatch_msg(msg):
             await self._router.send_multipart(msg)
 
         msg = [addr, b'', header, b'', body]
@@ -177,9 +185,14 @@ class Scheduler(object):
 
             reply_body = task.req_id.to_bytes()
             client_router.dispatch_msg(client.addr, b"TaskStart", reply_body)
+
+            if isinstance(task, SleepTask):
+                request_header = b"SleepTask"
+            else:
+                raise ValueError("Invalid Task Type.")
             request_body = task.id.to_bytes()
             request_body += task.job.to_bytes()
-            slave_router.dispatch_msg(slave.addr, b"TaskRequest", request_body)
+            slave_router.dispatch_msg(slave.addr, request_header, request_body)
 
     def _report_complete_task_to_client(self):
         for task in task_manager.complete_tasks:
@@ -192,9 +205,9 @@ class Scheduler(object):
             client_router.dispatch_msg(client.addr, b"TaskFinish", reply_body)
 
 
-CLIENT_ROUTER_ADDR = 'tcp://127.0.0.1:5000'
-SLAVE_ROUTER_ADDR = 'tcp://127.0.0.1:6000'
-CONTROL_ROUTER_ADDR = 'tcp://127.0.0.1:10000'
+CLIENT_ROUTER_ADDR = 'tcp://*:5000'
+SLAVE_ROUTER_ADDR = 'tcp://*:6000'
+CONTROL_ROUTER_ADDR = 'tcp://*:10000'
 
 context = Context()
 client_router = ClientRouter(context, CLIENT_ROUTER_ADDR)
