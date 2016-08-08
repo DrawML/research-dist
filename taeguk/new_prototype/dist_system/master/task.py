@@ -10,7 +10,7 @@ class Task(TaskIdentity):
     def __init__(self, client, req_id, tag = None):
         super().__init__()
         self._client = client
-        self._req_id = req_id
+        self._req_id = TaskIdentity(req_id, "ClientRequest")
         self._tag = tag
         self._status = Task.STATUS_NOT_REGISTERED
 

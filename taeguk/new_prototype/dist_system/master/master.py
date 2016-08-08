@@ -70,7 +70,7 @@ class ClientRouter(object):
             job = SleepTaskJob.from_bytes(body[4:8])
             task = SleepTask(job, client, req_id)
 
-            reply_body = req_id.to_bytes(4, byteorder='big')
+            reply_body = task.req_id.to_bytes()
             self.dispatch_msg(client.addr, b"TaskAccept", reply_body)
 
             client.have_task(task)
@@ -175,9 +175,10 @@ class Scheduler(object):
             slave.assign_task(task)
             task_manager.change_task_status(task, Task.STATUS_PROCESSING)
 
-            reply_body = task.req_id.to_bytes(4, byteorder='big')
+            reply_body = task.req_id.to_bytes()
             client_router.dispatch_msg(client.addr, b"TaskStart", reply_body)
-            request_body = task.id.to_bytes(4, byteorder='big')
+            request_body = task.id.to_bytes()
+            request_body += task.job.to_bytes()
             slave_router.dispatch_msg(slave.addr, b"TaskRequest", request_body)
 
     def _report_complete_task_to_client(self):
@@ -186,7 +187,7 @@ class Scheduler(object):
             client.lose_task(task)
             task_manager.del_task(task)
 
-            reply_body = task.req_id.to_bytes(4, byteorder='big')
+            reply_body = task.req_id.to_bytes()
             reply_body += task.result.to_bytes()
             client_router.dispatch_msg(client.addr, b"TaskFinish", reply_body)
 

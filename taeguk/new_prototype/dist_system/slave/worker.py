@@ -1,19 +1,50 @@
+import asyncio
+
 class WorkerIdentity(object):
-    def __init__(self, addr):
-        self._addr = addr
+
+    def __init__(self, id = None):
+        if id is None:
+            id = WorkerIdentity._get_avail_id()
+            self._fake_id = False
+        else:
+            self._fake_id = True
+        self._id = id
+
+    def __del__(self):
+        if not self._fake_id:
+            WorkerIdentity._id_pool.append(self._id)
 
     # I fire you if you override this.
     def __eq__(self, other):
-        return self._addr == other._addr
+        return self._id == other._id
 
     @property
-    def addr(self):
-        return self._addr
+    def id(self):
+        return self._id
+
+    @staticmethod
+    @asyncio.coroutine
+    def _generate_ids():
+        for id in range(1, 100):
+            yield id
+
+    _id_gen = _generate_ids.__func__()
+    _id_pool = []
+
+    @staticmethod
+    def _get_avail_id():
+        if WorkerIdentity._id_pool:
+            return WorkerIdentity._id_pool.pop(0)
+        else:
+            try:
+                return next(WorkerIdentity._id_gen)
+            except StopIteration:
+                raise Exception("Can't allocate id to Worker.")
 
 
 class Worker(WorkerIdentity):
-    def __init__(self, addr, tag = None):
-        super().__init__(addr)
+    def __init__(self, tag = None):
+        super().__init__()
         self._tag = tag
 
     def start(self, slave_addr, task):

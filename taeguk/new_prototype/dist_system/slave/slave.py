@@ -7,6 +7,7 @@ import zmq
 from zmq.asyncio import Context, ZMQEventLoop
 import asyncio
 from .worker import *
+from .task import *
 
 class MasterConnection(object):
 
@@ -31,8 +32,12 @@ class MasterConnection(object):
 
         #assert self._master_addr == addr
 
-        if header == b"TaskStart":
-
+        if header == b"TaskRequest":
+            worker = Worker()
+            id = int.from_bytes(body[0:4])
+            job = SleepTaskJob.from_bytes(body[4:8])
+            task = SleepTask(job, id)
+            worker.start(WORKER_ROUTER_ADDR, task)
         else:
             raise ValueError("Invalid Header.")
 
@@ -97,19 +102,16 @@ class WorkerRouter(object):
 
 
 MASTER_ADDR = 'tcp://127.0.0.1:6000'
-WORKER_ROUTER_ADDR = 'tcp://127.0.0.1:5556'
+WORKER_ROUTER_ADDR = 'rpc://'
 
 context = Context()
-master_conn = MasterConnection()
+master_conn = MasterConnection(context, MASTER_ADDR)
+worker_router = WorkerRouter(context, WORKER_ROUTER_ADDR)
+worker_manager = WorkerManager()
 
 async def run_server():
-    asyncio.ensure_future(client_router.run())
-    asyncio.ensure_future(slave_router.run())
-
-    # terminate server if receive a control packet from control socket.
-    control_router = context.socket(zmq.ROUTER)
-    control_router.bind(CONTROL_ROUTER_ADDR)
-    msg = await control_router.recv_multipart()
+    asyncio.ensure_future(master_conn.run())
+    await worker_router.run()
 
 
 def main():

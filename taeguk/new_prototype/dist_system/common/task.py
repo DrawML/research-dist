@@ -8,13 +8,14 @@ import asyncio
 
 class TaskIdentity(object):
 
-    def __init__(self, id = None):
+    def __init__(self, id = None, group = None):
         if id is None:
             id = TaskIdentity._get_avail_id()
             self._fake_id = False
         else:
             self._fake_id = True
         self._id = id
+        self._group = group
 
     def __del__(self):
         if not self._fake_id:
@@ -22,7 +23,7 @@ class TaskIdentity(object):
 
     # I fire you if you override this.
     def __eq__(self, other):
-        return self._id == other._id
+        return self._group == other._group and self._id == other._id
 
     @property
     def id(self):
@@ -47,6 +48,9 @@ class TaskIdentity(object):
             except StopIteration:
                 raise Exception("Can't allocate id to Task.")
 
+    def to_bytes(self):
+        self._id.to_bytes(4, byteorder='big')
+
 
 
 
@@ -56,7 +60,8 @@ class TaskJob(object):
     def to_bytes(self):
         raise NotImplementedError("This function must be override.")
 
-    def from_bytes(self):
+    @staticmethod
+    def from_bytes(bytes):
         raise NotImplementedError("This function must be override.")
 
 
@@ -64,7 +69,8 @@ class TaskResult(object):
     def to_bytes(self):
         raise NotImplementedError("This function must be override.")
 
-    def from_bytes(self):
+    @staticmethod
+    def from_bytes(bytes):
         raise NotImplementedError("This function must be override.")
 
 
@@ -81,7 +87,7 @@ class SleepTaskJob(TaskJob):
         return self._seconds.to_bytes(4, byteorder='big')
 
     @staticmethod
-    def from_bytes(self, bytes : bytes) -> 'SleepTaskJob':
+    def from_bytes(bytes : bytes) -> 'SleepTaskJob':
         return SleepTaskJob.__init__(int.from_bytes(bytes[0:4], byteorder='big'))
 
 
@@ -94,5 +100,5 @@ class SleepTaskResult(TaskResult):
         return self._comment.encode(encoding='utf-8')
 
     @staticmethod
-    def from_bytes(self, bytes : bytes) -> 'SleepTaskResult':
+    def from_bytes(bytes : bytes) -> 'SleepTaskResult':
         return SleepTaskResult.__init__(bytes.decode(encoding='utf-8'))
