@@ -133,7 +133,7 @@ class SlaveRouter(object):
             task_id = int.from_bytes(body[0:4], byteorder='big')
 
             task_identity = TaskIdentity(task_id)
-            task = task_manager.find_task(task_identity).result
+            task = task_manager.find_task(task_identity)
             task.set_result_from_bytes(body[4:])
 
             slave = slave_manager.find_slave(slave_identity)
@@ -178,10 +178,13 @@ class Scheduler(object):
     def _assign_waiting_task_to_slave(self):
         for task in task_manager.waiting_tasks:
             client = task.client
+
             try:
                 slave = slave_manager.get_proper_slave(task)
             except Exception as err:
                 print("[!]", err)
+                continue
+
             slave.assign_task(task)
             task_manager.change_task_status(task, Task.STATUS_PROCESSING)
 
@@ -195,6 +198,7 @@ class Scheduler(object):
             request_body = task.to_bytes()
             request_body += task.job.to_bytes()
             slave_router.dispatch_msg(slave.addr, request_header, request_body)
+
 
     def _report_complete_task_to_client(self):
         for task in task_manager.complete_tasks:

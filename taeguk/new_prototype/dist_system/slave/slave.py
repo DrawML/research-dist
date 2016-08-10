@@ -40,6 +40,7 @@ class MasterConnection(object):
             id = int.from_bytes(body[0:4], byteorder='big')
             job = SleepTaskJob.from_bytes(body[4:8])
             task = SleepTask(job, id)
+            worker_manager.add_worker(worker)
             worker.start(SLAVE_ADDR, task)
         else:
             raise ValueError("Invalid Header.")
@@ -84,7 +85,8 @@ class WorkerRouter(object):
     def _process(self, msg):
         addr, identity, header, body = self._resolve_msg(msg)
 
-        identity = identity.decode(encoding='utf-8')
+        identity = WorkerIdentity(identity.decode(encoding='utf-8'))
+        print(identity.id)
         worker = worker_manager.find_worker(identity)
 
         if header == b"TaskStart":
@@ -98,7 +100,7 @@ class WorkerRouter(object):
             worker.status = Worker.STATUS_FINISHED
             worker_manager.del_worker(worker)
 
-            master_conn.dispatch_msg(b"TaskFinish", task.result.to_bytes())
+            master_conn.dispatch_msg(b"TaskFinish", task.to_bytes() + task.result.to_bytes())
             self.dispatch_msg(addr, b"Goodbye")
 
         else:
@@ -107,12 +109,11 @@ class WorkerRouter(object):
     def _resolve_msg(self, msg):
         print(msg)
         addr = msg[0]
-        assert msg[1] == b''
-        identity = msg[2]
-        assert msg[3] == b''
-        header = msg[4]
-        assert msg[5] == b''
-        body = msg[6]
+        identity = msg[1]
+        assert msg[2] == b''
+        header = msg[3]
+        assert msg[4] == b''
+        body = msg[5]
 
         return addr, identity, header, body
 
@@ -121,15 +122,15 @@ class WorkerRouter(object):
         async def _dispatch_msg(msg):
             await self._router.send_multipart(msg)
 
-        msg = [addr, b'', header, b'', body]
+        msg = [addr, header, b'', body]
         asyncio.ensure_future(_dispatch_msg(msg))
 
 print("!!!!!!!!!!!!!")
 
 MASTER_ADDR = 'tcp://127.0.0.1:6000'
-WORKER_ROUTER_ADDR = 'tcp://*:7000'
-SLAVE_ADDR = 'tcp://127.0.0.1:7000'
-CONTROL_ROUTER_ADDR = 'tcp://*:3000'
+WORKER_ROUTER_ADDR = 'tcp://*:7001'
+SLAVE_ADDR = 'tcp://127.0.0.1:7001'
+CONTROL_ROUTER_ADDR = 'tcp://*:3001'
 
 async def run_server():
     asyncio.ensure_future(master_conn.run())

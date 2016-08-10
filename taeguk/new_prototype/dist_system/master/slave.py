@@ -75,7 +75,7 @@ class SlaveManager(object):
         for slave in self._slaves:
             if slave.tasks_count >= 3:
                 continue
-            if proper_slave is None or proper_slave.tasks_count() < slave.tasks_count:
+            if proper_slave is None or proper_slave.tasks_count < slave.tasks_count:
                 proper_slave = slave
 
         if proper_slave is None:

@@ -23,6 +23,7 @@ class MasterConnection(object):
         asyncio.ensure_future(task_simulator.run())
 
         while len(task_manager.complete_tasks) < TaskSimulator.NUM_TASKS:
+            print("len =", len(task_manager.complete_tasks))
             print("[Master Connection] before recv.")
             msg = await self._router.recv_multipart()
             print("[Master Connection] after recv.")
@@ -54,7 +55,7 @@ class MasterConnection(object):
             task.set_result_from_bytes(body[4:])
             task_manager.change_task_status(task_identity, Task.STATUS_COMPLETE)
 
-            print("[*] Task Finish. id = {0}, comment = {1}".format(task.id.id, task.result.comment))
+            print("[*] Task Finish. id = {0}, comment = {1}".format(task.id, task.result.comment))
 
         else:
             raise ValueError("Invalid Header.")
@@ -82,11 +83,11 @@ class MasterConnection(object):
 
 class TaskSimulator:
 
-    NUM_TASKS = 1
+    NUM_TASKS = 10
     SLEEP_TASK_MIN_SECONDS = 1
     SLEEP_TASK_MAX_SECONDS = 10
-    TASK_GAP_MIN_SECONDS = 10
-    TASK_GAP_MAX_SECONDS = 20
+    TASK_GAP_MIN_SECONDS = 0
+    TASK_GAP_MAX_SECONDS = 10
 
     def __init__(self):
         pass

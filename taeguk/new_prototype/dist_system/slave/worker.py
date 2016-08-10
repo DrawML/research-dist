@@ -9,15 +9,20 @@ class WorkerIdentity(object):
 
     _used_id = set()
 
-    def __init__(self):
-        id = _id_generator()
-        while id in WorkerIdentity._used_id:
+    def __init__(self, id = None):
+        if id is None:
             id = _id_generator()
-        WorkerIdentity._used_id.add(id)
+            while id in WorkerIdentity._used_id:
+                id = _id_generator()
+            WorkerIdentity._used_id.add(id)
+            self._fake_id = False
+        else:
+            self._fake_id = True
         self._id = id
 
     def __del__(self):
-        WorkerIdentity._used_id.remove(self._id)
+        if not self._fake_id:
+            WorkerIdentity._used_id.remove(self._id)
 
     # I fire you if you override this.
     def __eq__(self, other):
@@ -112,22 +117,29 @@ def _worker_main(id, slave_addr, task):
     from ..common.task import SleepTaskResult
     from .task import SleepTask
 
-    def _resolve_msg(self, msg):
+    def _resolve_msg(msg):
         print(msg)
-        addr = msg[0]
+        #addr = msg[0]
+        #assert msg[1] == b""
+        header = msg[0]
         assert msg[1] == b""
-        header = msg[2]
-        assert msg[3] == b""
-        body = msg[4]
+        body = msg[2]
 
-        return addr, header, body
+        return header, body
 
     def _dispatch_msg(header, body = b""):
         async def _dispatch_msg(msg):
             await socket.send_multipart(msg)
 
-        msg = [slave_addr, b'', id.encode(encoding='utf-8'), b'', header, b'', body]
+        msg = [id.encode(encoding='utf-8'), b'', header, b'', body]
         asyncio.ensure_future(_dispatch_msg(msg))
+
+    def __dispatch_msg(header, body=b""):
+        def _dispatch_msg(msg):
+            socket.send_multipart(msg)
+
+        msg = [id.encode(encoding='utf-8'), b'', header, b'', body]
+        _dispatch_msg(msg)
 
     def _process_sleep_task(task):
         async def __process_sleep_task(task):
@@ -147,22 +159,31 @@ def _worker_main(id, slave_addr, task):
 
         while True:
             msg = await socket.recv_multipart()
-            addr, header, body = _resolve_msg(msg)
+            header, body = _resolve_msg(msg)
             # some codes will be filled later.
             break
 
     print("[Worker {0}] I'm created!".format(id))
 
+    loop = ZMQEventLoop()
+    asyncio.set_event_loop(loop)
+
     context = Context()
     socket = context.socket(zmq.DEALER)
+    print(slave_addr)
     socket.connect(slave_addr)
+
+    print(task)
+    print(task.job.seconds)
+
+    #__dispatch_msg(b"TaskStart")
+
     print(socket)
 
     print(asyncio.get_event_loop())
 
 
-    loop = ZMQEventLoop()
-    asyncio.set_event_loop(loop)
+
     """
     policy = asyncio.get_event_loop_policy()
     policy.set_event_loop(policy.new_event_loop())
