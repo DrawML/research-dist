@@ -70,7 +70,7 @@ class ClientRouter(object):
             print("[Client Router] SleepTask packet in.")
             client = client_manager.find_client(client_identity)
 
-            req_id = int.from_bytes(body[0:4])
+            req_id = int.from_bytes(body[0:4], byteorder='big')
             job = SleepTaskJob.from_bytes(body[4:8])
             task = SleepTask(job, client, req_id)
 
@@ -85,11 +85,12 @@ class ClientRouter(object):
             raise ValueError("Invalid Header.")
 
     def _resolve_msg(self, msg):
+        print(msg)
         addr = msg[0]
-        assert msg[1] == b''
-        header = msg[2]
-        assert msg[3] == b''
-        body = msg[4]
+        #assert msg[1] == b''
+        header = msg[1]
+        assert msg[2] == b''
+        body = msg[3]
 
         return addr, header, body
 
@@ -98,7 +99,7 @@ class ClientRouter(object):
         async def _dispatch_msg(msg):
             await self._router.send_multipart(msg)
 
-        msg = [addr, b'', header, b'', body]
+        msg = [addr, header, b'', body]
         asyncio.ensure_future(_dispatch_msg(msg))
 
 
@@ -129,7 +130,7 @@ class SlaveRouter(object):
 
         elif header == b"TaskFinish":
             print("[Slave Router] TaskFinish packet in.")
-            task_id = int.from_bytes(body[0:4])
+            task_id = int.from_bytes(body[0:4], byteorder='big')
 
             task_identity = TaskIdentity(task_id)
             task = task_manager.find_task(task_identity).result
@@ -145,11 +146,12 @@ class SlaveRouter(object):
             raise ValueError("Invalid Header.")
 
     def _resolve_msg(self, msg):
+        print(msg)
         addr = msg[0]
-        assert msg[1] == b''
-        header = msg[2]
-        assert msg[3] == b''
-        body = msg[4]
+        #assert msg[1] == b''
+        header = msg[1]
+        assert msg[2] == b''
+        body = msg[3]
 
         return addr, header, body
 
@@ -158,7 +160,7 @@ class SlaveRouter(object):
         async def _dispatch_msg(msg):
             await self._router.send_multipart(msg)
 
-        msg = [addr, b'', header, b'', body]
+        msg = [addr, header, b'', body]
         asyncio.ensure_future(_dispatch_msg(msg))
 
 
@@ -190,7 +192,7 @@ class Scheduler(object):
                 request_header = b"SleepTask"
             else:
                 raise ValueError("Invalid Task Type.")
-            request_body = task.id.to_bytes()
+            request_body = task.to_bytes()
             request_body += task.job.to_bytes()
             slave_router.dispatch_msg(slave.addr, request_header, request_body)
 

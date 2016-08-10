@@ -49,7 +49,7 @@ class TaskIdentity(object):
                 raise Exception("Can't allocate id to Task.")
 
     def to_bytes(self):
-        self._id.to_bytes(4, byteorder='big')
+        return self._id.to_bytes(4, byteorder='big')
 
 
 
@@ -88,7 +88,11 @@ class SleepTaskJob(TaskJob):
 
     @staticmethod
     def from_bytes(bytes : bytes) -> 'SleepTaskJob':
-        return SleepTaskJob.__init__(int.from_bytes(bytes[0:4], byteorder='big'))
+        return SleepTaskJob(int.from_bytes(bytes[0:4], byteorder='big'))
+
+    @property
+    def seconds(self):
+        return self._seconds
 
 
 class SleepTaskResult(TaskResult):
@@ -101,4 +105,8 @@ class SleepTaskResult(TaskResult):
 
     @staticmethod
     def from_bytes(bytes : bytes) -> 'SleepTaskResult':
-        return SleepTaskResult.__init__(bytes.decode(encoding='utf-8'))
+        return SleepTaskResult(bytes.decode(encoding='utf-8'))
+
+    @property
+    def comment(self):
+        return self._comment

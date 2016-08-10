@@ -8,6 +8,7 @@ from zmq.asyncio import Context, ZMQEventLoop
 import asyncio
 from .worker import *
 from .task import *
+#from concurrent.futures import ProcessPoolExecutor
 
 class MasterConnection(object):
 
@@ -16,14 +17,12 @@ class MasterConnection(object):
         self._master_addr = master_addr
 
     async def run(self):
-        self._router = self._context.socket(zmq.REQ)        # if router, sending msg is not working.
+        self._router = self._context.socket(zmq.DEALER)        # if router, sending msg is not working.
         self._router.connect(self._master_addr)
         self._register()
 
         while True:
             print("[Master Connection] before recv.")
-            await asyncio.sleep(4)
-            print("what?!")
             msg = await self._router.recv_multipart()
             print("[Master Connection] after recv.")
             self._process(msg)
@@ -32,28 +31,28 @@ class MasterConnection(object):
         self.dispatch_msg(b"Register")
 
     def _process(self, msg):
-        addr, header, body = self._resolve_msg(msg)
-
-        assert self._master_addr == addr
+        header, body = self._resolve_msg(msg)
 
         if header == b"SleepTask":
+
             print("[Master Connection] SleepTask packet in.")
             worker = Worker()
-            id = int.from_bytes(body[0:4])
+            id = int.from_bytes(body[0:4], byteorder='big')
             job = SleepTaskJob.from_bytes(body[4:8])
             task = SleepTask(job, id)
-            worker.start(WORKER_ROUTER_ADDR, task)
+            worker.start(SLAVE_ADDR, task)
         else:
             raise ValueError("Invalid Header.")
 
     def _resolve_msg(self, msg):
-        addr = msg[0]
+        print(msg)
+        #addr = msg[0]
+        #assert msg[1] == b''
+        header = msg[0]
         assert msg[1] == b''
-        header = msg[2]
-        assert msg[3] == b''
-        body = msg[4]
+        body = msg[2]
 
-        return addr, header, body
+        return header, body
 
     def dispatch_msg(self, header, body = b''):
 
@@ -77,7 +76,9 @@ class WorkerRouter(object):
         self._router.bind(self._addr)
 
         while True:
+            print("[Worker Router] before recv.")
             msg = await self._router.recv_multipart()
+            print("[Worker Router] after recv.")
             self._process(msg)
 
     def _process(self, msg):
@@ -104,6 +105,7 @@ class WorkerRouter(object):
             raise ValueError("Invalid Header.")
 
     def _resolve_msg(self, msg):
+        print(msg)
         addr = msg[0]
         assert msg[1] == b''
         identity = msg[2]
@@ -122,15 +124,12 @@ class WorkerRouter(object):
         msg = [addr, b'', header, b'', body]
         asyncio.ensure_future(_dispatch_msg(msg))
 
+print("!!!!!!!!!!!!!")
 
 MASTER_ADDR = 'tcp://127.0.0.1:6000'
-WORKER_ROUTER_ADDR = 'tcp://127.0.0.1:7000'
-CONTROL_ROUTER_ADDR = 'tcp://*:11000'
-
-context = Context()
-master_conn = MasterConnection(context, MASTER_ADDR)
-worker_router = WorkerRouter(context, WORKER_ROUTER_ADDR)
-worker_manager = WorkerManager()
+WORKER_ROUTER_ADDR = 'tcp://*:7000'
+SLAVE_ADDR = 'tcp://127.0.0.1:7000'
+CONTROL_ROUTER_ADDR = 'tcp://*:3000'
 
 async def run_server():
     asyncio.ensure_future(master_conn.run())
@@ -142,9 +141,22 @@ async def run_server():
     msg = await control_router.recv_multipart()
 
 def main():
+
+    global context
+    global master_conn
+    global worker_router
+    global worker_manager
+
+    context = Context()
+    master_conn = MasterConnection(context, MASTER_ADDR)
+    worker_router = WorkerRouter(context, WORKER_ROUTER_ADDR)
+    worker_manager = WorkerManager()
+
+
     try:
         loop = ZMQEventLoop()
         asyncio.set_event_loop(loop)
+        #loop.set_default_executor(ProcessPoolExecutor())
         loop.run_until_complete(run_server())
     except KeyboardInterrupt:
         print('\nFinished (interrupted)')

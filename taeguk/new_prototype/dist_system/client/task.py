@@ -7,20 +7,10 @@ class Task(TaskIdentity):
     STATUS_PROCESSING = 2
     STATUS_COMPLETE = 3
 
-    def __init__(self, client, req_id, tag = None):
+    def __init__(self, tag = None):
         super().__init__()
-        self._client = client
-        self._req_id = TaskIdentity(req_id, "ClientRequest")
         self._tag = tag
         self._status = Task.STATUS_NOT_REGISTERED
-
-    @property
-    def client(self):
-        return self._client
-
-    @property
-    def req_id(self):
-        return self._req_id
 
     @property
     def tag(self):
@@ -55,8 +45,8 @@ class Task(TaskIdentity):
 
 
 class SleepTask(Task):
-    def __init__(self, job, client, req_id, tag = None):
-        super().__init__(client, req_id, tag)
+    def __init__(self, job, tag = None):
+        super().__init__(tag)
         self._job = job
 
     @property
@@ -106,7 +96,6 @@ class TaskManager(object):
             cur_status = task.status
             self._dic_queue[cur_status].remove(task)
             self._dic_queue[new_status].append(task)
-
             task.status = new_status
 
     def check_task_existence(self, task_identity):

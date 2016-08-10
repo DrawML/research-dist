@@ -1,3 +1,4 @@
 from dist_system.slave import slave
 
-slave.main()
+if __name__ == '__main__':
+    slave.main()

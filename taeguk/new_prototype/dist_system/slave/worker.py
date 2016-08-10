@@ -42,8 +42,21 @@ class Worker(WorkerIdentity):
     def start(self, slave_addr, task):
         self._task = task
 
-        from multiprocessing import Process
-        Process(target=_worker_main, args=(self.id, slave_addr, task)).start()
+        def _start(id, slave_addr, task):
+            from multiprocessing import Process
+            import multiprocessing
+            #multiprocessing.set_start_method('spawn')
+            Process(target=_worker_main, args=(id, slave_addr, task)).start()
+
+        from concurrent.futures import ProcessPoolExecutor
+        print("[Worker {0}] Create".format(self.id))
+        _start(self.id, slave_addr, task)
+        #executor = ProcessPoolExecutor()
+        #loop = asyncio.get_event_loop()
+        #asyncio.ensure_future(loop.run_in_executor(ProcessPoolExecutor(), _worker_main, self.id, slave_addr, task))
+        #asyncio.ensure_future(_start(self.id, slave_addr, task))
+        #yield from asyncio.sleep(10)
+        print("***")
 
     @property
     def task(self):
@@ -91,6 +104,8 @@ class WorkerManager(object):
 
 def _worker_main(id, slave_addr, task):
 
+    print("_worker_main")
+
     import zmq
     from zmq.asyncio import Context, ZMQEventLoop
     import asyncio
@@ -98,6 +113,7 @@ def _worker_main(id, slave_addr, task):
     from .task import SleepTask
 
     def _resolve_msg(self, msg):
+        print(msg)
         addr = msg[0]
         assert msg[1] == b""
         header = msg[2]
@@ -106,7 +122,7 @@ def _worker_main(id, slave_addr, task):
 
         return addr, header, body
 
-    def _dispatch_msg(header, body):
+    def _dispatch_msg(header, body = b""):
         async def _dispatch_msg(msg):
             await socket.send_multipart(msg)
 
@@ -122,6 +138,7 @@ def _worker_main(id, slave_addr, task):
         asyncio.ensure_future(__process_sleep_task(task))
 
     async def _run_worker():
+        print(socket)
         _dispatch_msg(b"TaskStart")
         if isinstance(task, SleepTask):
             _process_sleep_task(task)
@@ -134,12 +151,24 @@ def _worker_main(id, slave_addr, task):
             # some codes will be filled later.
             break
 
+    print("[Worker {0}] I'm created!".format(id))
+
     context = Context()
-    socket = context.socket(zmq.ROUTER)
+    socket = context.socket(zmq.DEALER)
     socket.connect(slave_addr)
+    print(socket)
+
+    print(asyncio.get_event_loop())
+
 
     loop = ZMQEventLoop()
     asyncio.set_event_loop(loop)
+    """
+    policy = asyncio.get_event_loop_policy()
+    policy.set_event_loop(policy.new_event_loop())
+    loop = asyncio.get_event_loop()
+    """
+    print(asyncio.get_event_loop())
     loop.run_until_complete(_run_worker())
 
 
