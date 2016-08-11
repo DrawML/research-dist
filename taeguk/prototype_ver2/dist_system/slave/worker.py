@@ -150,7 +150,6 @@ def _worker_main(id, slave_addr, task):
         asyncio.ensure_future(__process_sleep_task(task))
 
     async def _run_worker():
-        print(socket)
         _dispatch_msg(b"TaskStart")
         if isinstance(task, SleepTask):
             _process_sleep_task(task)
@@ -170,26 +169,15 @@ def _worker_main(id, slave_addr, task):
 
     context = Context()
     socket = context.socket(zmq.DEALER)
-    print(slave_addr)
+
     socket.connect(slave_addr)
-
-    print(task)
-    print(task.job.seconds)
-
-    #__dispatch_msg(b"TaskStart")
-
-    print(socket)
-
-    print(asyncio.get_event_loop())
-
-
 
     """
     policy = asyncio.get_event_loop_policy()
     policy.set_event_loop(policy.new_event_loop())
     loop = asyncio.get_event_loop()
     """
-    print(asyncio.get_event_loop())
+
     loop.run_until_complete(_run_worker())
 
 

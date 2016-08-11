@@ -137,7 +137,9 @@ class SlaveRouter(object):
             task.set_result_from_bytes(body[4:])
 
             slave = slave_manager.find_slave(slave_identity)
+            print("before task count :", slave.tasks_count)
             slave.delete_task(task_identity)
+            print("after task count :", slave.tasks_count)
 
             task_manager.change_task_status(task_identity, Task.STATUS_COMPLETE)
             scheduler.invoke()

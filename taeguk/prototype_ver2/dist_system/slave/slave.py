@@ -127,10 +127,12 @@ class WorkerRouter(object):
 
 print("!!!!!!!!!!!!!")
 
+"""
 MASTER_ADDR = 'tcp://127.0.0.1:6000'
 WORKER_ROUTER_ADDR = 'tcp://*:7001'
 SLAVE_ADDR = 'tcp://127.0.0.1:7001'
 CONTROL_ROUTER_ADDR = 'tcp://*:3001'
+"""
 
 async def run_server():
     asyncio.ensure_future(master_conn.run())
@@ -141,22 +143,27 @@ async def run_server():
     control_router.bind(CONTROL_ROUTER_ADDR)
     msg = await control_router.recv_multipart()
 
-def main():
+def main(MASTER_ADDR, WORKER_ROUTER_ADDR, slave_addr, control_router_addr):
 
     global context
     global master_conn
     global worker_router
     global worker_manager
 
-    context = Context()
-    master_conn = MasterConnection(context, MASTER_ADDR)
-    worker_router = WorkerRouter(context, WORKER_ROUTER_ADDR)
-    worker_manager = WorkerManager()
-
+    global SLAVE_ADDR
+    global CONTROL_ROUTER_ADDR
+    SLAVE_ADDR = slave_addr
+    CONTROL_ROUTER_ADDR = control_router_addr
 
     try:
         loop = ZMQEventLoop()
         asyncio.set_event_loop(loop)
+
+        context = Context()
+        master_conn = MasterConnection(context, MASTER_ADDR)
+        worker_router = WorkerRouter(context, WORKER_ROUTER_ADDR)
+        worker_manager = WorkerManager()
+
         #loop.set_default_executor(ProcessPoolExecutor())
         loop.run_until_complete(run_server())
     except KeyboardInterrupt:
