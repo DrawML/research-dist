@@ -1,5 +1,7 @@
-class ClientSessionIdentity(object):
+from ..common import SingletonMeta
 
+
+class ClientSessionIdentity(object):
     def __init__(self, addr):
         self._addr = addr
 
@@ -13,7 +15,6 @@ class ClientSessionIdentity(object):
 
 
 class ClientSession(ClientSessionIdentity):
-
     def __init__(self, addr, task):
         super().__init__(addr)
         self._task = task
@@ -27,8 +28,7 @@ class ClientSession(ClientSessionIdentity):
         return ClientSession(client_session_identity.addr, task)
 
 
-class ClientSessionManager(object):
-
+class ClientSessionManager(metaclass=SingletonMeta):
     def __init__(self):
         self._sessions = []
 
@@ -46,13 +46,13 @@ class ClientSessionManager(object):
         self._sessions.remove(client_session_identity)
 
     def _from_generic_to_session(self, identity_or_session):
-        if isinstance(identity_or_session, ClientSessionIdentity):
+        if type(identity_or_session) == ClientSessionIdentity:
             session = self.find_session(identity_or_session)
         else:
             session = identity_or_session
         return session
 
-    def check_session_existence(self, client_session_identity, find_flag = False):
+    def check_session_existence(self, client_session_identity, find_flag=False):
         targets = [session for session in self._sessions if session == client_session_identity]
         ret = len(targets) > 0
         if find_flag:

@@ -1,3 +1,6 @@
+from ..common import SingletonMeta
+
+
 class SlaveIdentity(object):
 
     def __init__(self, addr):
@@ -17,6 +20,7 @@ class Slave(SlaveIdentity):
     def __init__(self, addr):
         super().__init__(addr)
         self._tasks = []
+        self.heartbeat()
 
     @property
     def tag(self):
@@ -29,15 +33,29 @@ class Slave(SlaveIdentity):
     def assign_task(self, task):
         self._tasks.append(task)
 
-    def delete_task(self, task_identity):
-        self._tasks.remove(task_identity)
+    def delete_task(self, task):
+        self._tasks.remove(task)
+
+    @property
+    def tasks(self):
+        return tuple(self._tasks)
 
     @staticmethod
     def make_slave_from_identity(slave_identity):
         return Slave(slave_identity.addr)
 
+    def heartbeat(self):
+        self._liveness = SlaveManager.HEARTBEAT_LIVENESS
 
-class SlaveManager(object):
+    def live(self):
+        self._liveness -= 1
+        return self._liveness > 0
+
+
+class SlaveManager(metaclass=SingletonMeta):
+
+    HEARTBEAT_LIVENESS = 3
+    HEARTBEAT_INTERVAL = 1
 
     def __init__(self):
         self._slaves = []
@@ -53,11 +71,10 @@ class SlaveManager(object):
             self._slaves.append(slave)
 
     def del_slave(self, slave_identity):
-        slave = self.find_slave(slave_identity)
-        self._slaves.remove(slave)
+        self._slaves.remove(slave_identity)
 
     def _from_generic_to_slave(self, identity_or_slave):
-        if isinstance(identity_or_slave, SlaveIdentity):
+        if type(identity_or_slave) == SlaveIdentity:
             slave = self.find_slave(identity_or_slave)
         else:
             slave = identity_or_slave
@@ -95,3 +112,15 @@ class SlaveManager(object):
             raise Exception("Not available Slaves.")
         else:
             return proper_slave
+
+    def purge(self):
+        expired_slaves = []
+        leak_tasks = []
+        for slave in self._slaves:
+            alive = slave.live()
+            if not alive:
+                expired_slaves.append(slave)
+                self.del_slave(slave)
+                tasks = slave.tasks
+                leak_tasks += tasks
+        return expired_slaves, leak_tasks

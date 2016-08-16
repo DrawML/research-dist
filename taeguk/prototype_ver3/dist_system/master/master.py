@@ -3,6 +3,7 @@ import zmq
 from zmq.asyncio import Context, ZMQEventLoop
 import asyncio
 from .msg_handler import ClientMessageHandler, SlaveMessageHandler
+from .controller import run_heartbeat
 
 
 class ClientRouter(object):
@@ -58,7 +59,8 @@ async def run_master(context : Context, client_router_addr : str, slave_router_a
 
     asyncio.wait([
         asyncio.ensure_future(client_router.run()),
-        asyncio.ensure_future(slave_router.run())
+        asyncio.ensure_future(slave_router.run()),
+        asyncio.ensure_future(run_heartbeat())
     ])
 
 
