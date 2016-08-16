@@ -1,22 +1,38 @@
-from .client import *
-from .slave import *
-from .task import *
+
 from ..task.sleep_task import *
-from .controller import Scheduler
 from ..protocol import ResultReceiverAddress
 from ..library import SingletonMeta
+from .worker import *
+from .task import *
 
 
-class ClientMessageHandler(metaclass=SingletonMeta):
+class MasterMessageHandler(metaclass=SingletonMeta):
     def __init__(self):
         pass
 
-    def handle_msg(self, addr, header, body):
-        session_identity = ClientSessionIdentity(addr)
+    def handle_msg(self, header, body):
         msg_name = header
-        ClientMessageHandler.__handler_dict[msg_name](self, session_identity, body)
+        MasterMessageHandler.__handler_dict[msg_name](self, body)
 
-    def _h_task_register_req(self, session_identity, body):
+    def _h_heart_beat_req(self, body):
+        # send "Heart Beat Res" to master using protocol.
+        pass
+
+    def _h_slave_register_res(self, body):
+        # extract some data from body using protocol.
+        status = 'success'
+        error_code = None
+
+        if status == 'success':
+            pass
+        elif status == 'fail':
+            import sys
+            # cannot register itself to master.
+            sys.exit(1)
+        else:
+            pass
+
+    def _h_task_register_req(self, body):
         # extract some data from body using protocol.
         result_receiver_address = ResultReceiverAddress('tcp', 'ip', 12345)
         task_token = TaskToken(b"__THIS_IS_TASK_TOKEN__")
@@ -24,39 +40,37 @@ class ClientMessageHandler(metaclass=SingletonMeta):
         task = SleepTask(task_token, result_receiver_address, SleepTaskJob(10))
 
         TaskManager().add_task(task)
-        session = ClientSession.make_session_from_identity(session_identity, task)
-        ClientSessionManager().add_session(session)
+        WorkerManager().add_token_task_to_dic(WorkerToken.generate_random_token(), task)
+        # create new worker and
 
-        # send "Task Register Res" to client using protocol.
+        # send "Task Register Res" to master using protocol.
 
-    def _h_task_register_ack(self, session_identity, body):
-        session = ClientSessionManager().find_session(session_identity)
-        task = session.task
-        TaskManager().change_task_status(task, TaskStatus.STATUS_WAITING)
-        ClientSessionManager().del_session(session)
-
-        Scheduler().invoke()
-
-    def _h_task_cancel_req(self, session_identity, body):
+    def _h_task_cancel_req(self, body):
         # extract some data from body using protocol.
         task_token = b"__THIS_IS_TASK_TOKEN__"
 
         task = TaskManager().find_task(task_token)
-        TaskManager().cancel_task(task)
-        slave = SlaveManager().find_slave_having_task(task)
-        slave.delete_task(task)
+        try:
+            worker = WorkerManager().find_worker_having_task(task)
 
-        # send "Task Cancel Res" to client using protocol.
-        # send "Task Cancel Req" to slave using protocol
+        except ValueError:
+            pass
+
+
+    def _h_task_finish_res(self, body):
+        pass
+
 
     __handler_dict = {
+        "heart_beat_req": _h_heart_beat_req,
+        "slave_register_res": _h_slave_register_res,
         "task_register_req": _h_task_register_req,
-        "task_register_ack": _h_task_register_ack,
-        "task_cancel_req": _h_task_cancel_req
+        "task_cancel_req": _h_task_cancel_req,
+        "task_finish_res": _h_task_finish_res
     }
 
 
-class SlaveMessageHandler(metaclass=SingletonMeta):
+class WorkerMessageHandler(metaclass=SingletonMeta):
     def __init__(self):
         pass
 

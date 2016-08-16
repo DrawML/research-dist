@@ -4,7 +4,9 @@
 import random
 import string
 from abc import *
-from ..common import AutoIncrementEnum
+from ..library import AutoIncrementEnum
+from ..protocol import ResultReceiverAddress
+
 
 class TaskType(AutoIncrementEnum):
     TYPE_SLEEP_TASK = ()
@@ -27,11 +29,13 @@ class TaskToken(object):
 
 
 class Task(metaclass = ABCMeta):
-    def __init__(self, task_token : TaskToken):
+    def __init__(self, task_token : TaskToken, result_receiver_address : ResultReceiverAddress):
         self._task_token = task_token
+        self._result_receiver_address = result_receiver_address
 
     def __eq__(self, other : 'Task'):
         return self._task_token == other._task_token
+
 
     @property
     def task_token(self):
@@ -45,14 +49,30 @@ class Task(metaclass = ABCMeta):
     def status(self, status):
         self._status = status
 
+    @property
+    @abstractmethod
+    def job(self):
+        pass
+
+    @property
+    @abstractmethod
+    def result(self):
+        pass
+
+    @result.setter
+    @abstractmethod
+    def result(self, result):
+        pass
+
 
 class TaskJob(metaclass = ABCMeta):
     @abstractmethod
     def to_bytes(self):
         pass
 
-    @abstractstaticmethod
-    def from_bytes(bytes : bytes) -> 'TaskJob':
+    @staticmethod
+    @abstractmethod
+    def from_bytes(bytes_ : bytes) -> 'TaskJob':
         pass
 
 
@@ -61,6 +81,7 @@ class TaskResult(metaclass = ABCMeta):
     def to_bytes(self):
         pass
 
-    @abstractstaticmethod
-    def from_bytes(bytes: bytes) -> 'TaskResult':
+    @staticmethod
+    @abstractmethod
+    def from_bytes(bytes_: bytes) -> 'TaskResult':
         pass

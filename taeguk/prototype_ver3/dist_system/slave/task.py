@@ -3,8 +3,7 @@ from ..task.task import *
 
 
 class TaskStatus(AutoIncrementEnum):
-    STATUS_PENDING_ACK = ()
-    STATUS_WAITING = ()
+    STATUS_REGISTERED = ()
     STATUS_PROCESSING = ()
     STATUS_COMPLETE = ()
 
@@ -13,13 +12,11 @@ class TaskManager(metaclass=SingletonMeta):
 
     def __init__(self):
         self._all_tasks = []
-        self._pending_ack_tasks = []
-        self._waiting_tasks = []
+        self._registered_tasks = []
         self._processing_tasks = []
         self._complete_tasks = []
         self._dic_queue = {
-            TaskStatus.STATUS_PENDING_ACK : self._pending_ack_tasks,
-            TaskStatus.STATUS_WAITING : self._waiting_tasks,
+            TaskStatus.STATUS_REGISTERED : self._registered_tasks,
             TaskStatus.STATUS_PROCESSING : self._processing_tasks,
             TaskStatus.STATUS_COMPLETE : self._complete_tasks
         }
@@ -28,8 +25,8 @@ class TaskManager(metaclass=SingletonMeta):
         if self.check_task_existence(task.task_token):
             raise ValueError("Duplicated Task.")
         else:
-            task.status = TaskStatus.STATUS_PENDING_ACK
-            self._waiting_tasks.append(task)
+            task.status = TaskStatus.STATUS_REGISTERED
+            self._registered_tasks.append(task)
             self._all_tasks.append(task)
 
     def del_task(self, task_token_or_task):
@@ -84,8 +81,8 @@ class TaskManager(metaclass=SingletonMeta):
             self.change_task_status(task, TaskStatus.STATUS_WAITING)
 
     @property
-    def waiting_tasks(self):
-        return tuple(self._waiting_tasks)
+    def registered_tasks(self):
+        return tuple(self._registered_tasks)
 
     @property
     def complete_tasks(self):
