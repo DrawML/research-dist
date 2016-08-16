@@ -1,19 +1,10 @@
 #!/usr/bin/env python3
 #-*- coding: utf-8 -*-
 
-from enum import Enum
 import random
 import string
 from abc import *
-
-
-class AutoIncrementEnum(Enum):
-    def __new__(cls):
-        value = len(cls.__members__) + 1
-        obj = object.__new__(cls)
-        obj._value_ = value
-        return obj
-
+from ..common import AutoIncrementEnum
 
 class TaskType(AutoIncrementEnum):
     TYPE_SLEEP_TASK = ()

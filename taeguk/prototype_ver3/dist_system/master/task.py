@@ -1,4 +1,4 @@
-from enum import Enum
+from ..common import (AutoIncrementEnum, SingletonMeta)
 from ..task.task import *
 
 
@@ -9,7 +9,7 @@ class TaskStatus(AutoIncrementEnum):
     STATUS_COMPLETE = ()
 
 
-class TaskManager(object):
+class TaskManager(metaclass=SingletonMeta):
 
     def __init__(self):
         self._all_tasks = []
@@ -67,6 +67,20 @@ class TaskManager(object):
             return targets[0]
         else:
             raise ValueError("Non-existent Task.")
+
+    def cancel_task(self, task_token_or_task):
+        task = self._from_generic_to_task(task_token_or_task)
+        self.del_task(task)
+
+    def redo_leak_task(self, task_token_or_task_or_list):
+        if type(task_token_or_task_or_list) == list or type(task_token_or_task_or_list) == tuple:
+            l = task_token_or_task_or_list
+        else:
+            l = [task_token_or_task_or_list]
+        for task_token_or_task in l:
+            task = self._from_generic_to_task(task_token_or_task)
+            self.cancel_task(task)
+            self.add_task(task)
 
     @property
     def waiting_tasks(self):
