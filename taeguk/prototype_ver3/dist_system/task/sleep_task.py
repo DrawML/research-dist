@@ -2,9 +2,10 @@ from .task import *
 
 
 class SleepTask(Task):
-    def __init__(self, job : SleepTaskJob):
+    def __init__(self,  task_token : TaskToken, result_receiver_address : ResultReceiverAddress,
+                 job : SleepTaskJob):
         assert isinstance(job, SleepTaskJob)
-        super().__init__()
+        super().__init__(task_token, result_receiver_address)
         self._job = job
 
     @property
@@ -30,8 +31,8 @@ class SleepTaskJob(TaskJob):
         return self._seconds.to_bytes(4, byteorder='big')
 
     @staticmethod
-    def from_bytes(bytes : bytes) -> 'SleepTaskJob':
-        return SleepTaskJob(int.from_bytes(bytes[0:4], byteorder='big'))
+    def from_bytes(bytes_ : bytes) -> 'SleepTaskJob':
+        return SleepTaskJob(int.from_bytes(bytes_[0:4], byteorder='big'))
 
     @property
     def seconds(self):
@@ -47,8 +48,8 @@ class SleepTaskResult(TaskResult):
         return self._comment.encode(encoding='utf-8')
 
     @staticmethod
-    def from_bytes(bytes : bytes) -> 'SleepTaskResult':
-        return SleepTaskResult(bytes.decode(encoding='utf-8'))
+    def from_bytes(bytes_ : bytes) -> 'SleepTaskResult':
+        return SleepTaskResult(bytes_.decode(encoding='utf-8'))
 
     @property
     def comment(self):

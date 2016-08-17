@@ -1,4 +1,4 @@
-from ..common import SingletonMeta
+from ..library import SingletonMeta
 
 
 class ClientSessionIdentity(object):

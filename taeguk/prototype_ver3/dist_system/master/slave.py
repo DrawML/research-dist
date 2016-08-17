@@ -1,4 +1,4 @@
-from ..common import SingletonMeta
+from ..library import SingletonMeta
 
 
 class SlaveIdentity(object):
@@ -96,6 +96,12 @@ class SlaveManager(metaclass=SingletonMeta):
             return targets[0]
         else:
             raise ValueError("Non-existent Slave.")
+
+    def find_slave_having_task(self, task):
+        for slave in self._slaves:
+            if task in slave.tasks:
+                return slave
+        raise ValueError("Non-existent Slave.")
 
     # Get proper slave for task.
     def get_proper_slave(self, task):
