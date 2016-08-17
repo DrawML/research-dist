@@ -2,6 +2,7 @@ import asyncio
 import string
 import random
 from ..library import SingletonMeta
+import subprocess
 
 
 class WorkerIdentity(object):
@@ -37,13 +38,18 @@ class WorkerIdentity(object):
 
 
 class Worker(WorkerIdentity):
-    def __init__(self, task, addr = None):
+    def __init__(self, proc : subprocess.Pipen, task, addr = None):
         super().__init__(addr)
+        self._proc = proc
         self._task = task
 
     @property
     def task(self):
         return self._task
+
+    @property
+    def proc(self):
+        return self._proc
 
 
 class WorkerManager(metaclass=SingletonMeta):
@@ -96,3 +102,13 @@ class WorkerManager(metaclass=SingletonMeta):
             self._dic_task_worker[task]
         except KeyError:
             raise ValueError("Non-existent Worker.")
+
+    def purge(self):
+        expired_workers = []
+        leak_tasks = []
+        for worker in self._workers:
+            if worker.proc.poll() is not None:
+                expired_workers.append(worker)
+                self.del_worker(worker)
+                leak_tasks.append(worker.task)
+        return expired_workers, leak_tasks

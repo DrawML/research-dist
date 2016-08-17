@@ -12,7 +12,6 @@ class TaskStatus(AutoIncrementEnum):
 class TaskManager(CommonTaskManager, metaclass=SingletonMeta):
 
     def __init__(self):
-        self._all_tasks = []
         self._pending_ack_tasks = []
         self._waiting_tasks = []
         self._processing_tasks = []
@@ -24,10 +23,6 @@ class TaskManager(CommonTaskManager, metaclass=SingletonMeta):
             TaskStatus.STATUS_COMPLETE : self._complete_tasks
         }
         super().__init__(self._dic_status_queue, TaskStatus.STATUS_PENDING_ACK)
-
-    def cancel_task(self, task_token_or_task):
-        task = self._from_generic_to_task(task_token_or_task)
-        self.del_task(task)
 
     def redo_leak_task(self, task_token_or_task_or_list):
         if type(task_token_or_task_or_list) == list or type(task_token_or_task_or_list) == tuple:

@@ -42,7 +42,7 @@ class ClientMessageHandler(metaclass=SingletonMeta):
         task_token = b"__THIS_IS_TASK_TOKEN__"
 
         task = TaskManager().find_task(task_token)
-        TaskManager().cancel_task(task)
+        TaskManager().del_task(task)
         try:
             slave = SlaveManager().find_slave_having_task(task)
             slave.delete_task(task)

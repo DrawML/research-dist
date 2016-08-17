@@ -7,6 +7,7 @@ import zmq
 from zmq.asyncio import Context, ZMQEventLoop
 import asyncio
 from .msg_handler import (MasterMessageHandler, WorkerMessageHandler)
+from .controller import (WorkerCreator, run_polling_workers)
 
 
 class MasterConnection(object):
@@ -26,7 +27,7 @@ class MasterConnection(object):
             self._process(msg)
 
     def _register(self):
-        self.dispatch_msg(b"Register")
+        raise NotImplementedError("send slave_register_req to master using protocol")
 
     def _process(self, msg):
         # separate data into header and body using protocol.*
@@ -104,14 +105,16 @@ class WorkerRouter(object):
             _dispatch_msg_sync(msg)
 
 
-async def run_master(context : Context, master_addr, worker_router_addr):
+async def run_master(context : Context, master_addr, worker_router_addr, worker_file_name):
 
     master_conn = MasterConnection(context, master_addr, MasterMessageHandler())
     worker_router = WorkerRouter(context, worker_router_addr, WorkerMessageHandler())
+    WorkerCreator(worker_file_name)
 
     asyncio.wait([
         asyncio.ensure_future(master_conn.run()),
-        asyncio.ensure_future(worker_router.run())
+        asyncio.ensure_future(worker_router.run()),
+        asyncio.ensure_future(run_polling_workers())
     ])
 
 

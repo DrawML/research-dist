@@ -4,6 +4,7 @@ from ..protocol import ResultReceiverAddress
 from ..library import SingletonMeta
 from .worker import *
 from .task import *
+from .controller import *
 
 
 class MasterMessageHandler(metaclass=SingletonMeta):
@@ -40,8 +41,9 @@ class MasterMessageHandler(metaclass=SingletonMeta):
         task = SleepTask(task_token, result_receiver_address, SleepTaskJob(10))
 
         TaskManager().add_task(task)
-        WorkerManager().add_worker(Worker(task))
-        # create new worker with parameters!
+        proc = WorkerCreator().create(result_receiver_address, task_token, task_type, task)
+        WorkerManager().add_worker(Worker(proc, task))
+
 
         # send "Task Register Res" to master using protocol.
 
@@ -50,11 +52,12 @@ class MasterMessageHandler(metaclass=SingletonMeta):
         task_token = b"__THIS_IS_TASK_TOKEN__"
 
         task = TaskManager().find_task(task_token)
-        TaskManager().cancel_task(task)
+        TaskManager().del_task(task)
         try:
             worker = WorkerManager().find_worker_having_task(task)
             WorkerManager().del_worker(worker)
             # send "Task Cancel Req" to worker using protocol
+            # 여기서 다 지우므로 Task Cancel Res는 받을 수 없다.
         except ValueError:
             pass
 
@@ -95,10 +98,14 @@ class WorkerMessageHandler(metaclass=SingletonMeta):
 
 
     def _h_task_cancel_res(self, worker_identity, body):
-        # what I do??!
+        # 현재 흐름상 이 message는 절대 수신될 수 없음!!
         pass
 
     def _h_task_finish_req(self, worker_identity, body):
+        worker = WorkerManager().find_worker(worker_identity)
+        WorkerManager().del_worker(worker)
+        TaskManager().del_task(worker.task)
+
         # send "Task Finish Req" to master using protocol
         # send "Task Finish Res" to worker using protocol
         pass
