@@ -40,8 +40,8 @@ class MasterMessageHandler(metaclass=SingletonMeta):
         task = SleepTask(task_token, result_receiver_address, SleepTaskJob(10))
 
         TaskManager().add_task(task)
-        WorkerManager().add_token_task_to_dic(WorkerToken.generate_random_token(), task)
-        # create new worker and
+        WorkerManager().add_worker(Worker(task))
+        # create new worker with parameters!
 
         # send "Task Register Res" to master using protocol.
 
@@ -50,14 +50,16 @@ class MasterMessageHandler(metaclass=SingletonMeta):
         task_token = b"__THIS_IS_TASK_TOKEN__"
 
         task = TaskManager().find_task(task_token)
+        TaskManager().cancel_task(task)
         try:
             worker = WorkerManager().find_worker_having_task(task)
-
+            WorkerManager().del_worker(worker)
+            # send "Task Cancel Req" to worker using protocol
         except ValueError:
             pass
 
-
     def _h_task_finish_res(self, body):
+        # what I do??!
         pass
 
 
@@ -75,66 +77,34 @@ class WorkerMessageHandler(metaclass=SingletonMeta):
         pass
 
     def handle_msg(self, addr, header, body):
-        slave_identity = SlaveIdentity(addr)
+        worker_identity = WorkerIdentity(addr)
         msg_name = header
-        SlaveMessageHandler.__handler_dict[msg_name](self, slave_identity, body)
+        WorkerMessageHandler.__handler_dict[msg_name](self, worker_identity, body)
 
-    def _h_heart_beat_res(self, slave_identity, body):
-        SlaveManager().find_slave(slave_identity).heartbeat()
-
-    def _h_slave_register_req(self, slave_identity, body):
-        SlaveManager().add_slave(Slave.make_slave_from_identity(slave_identity))
-
-        Scheduler().invoke()
-
-        # send "Slave Register Res" to slave using protocol.
-
-    def _h_task_register_res(self, slave_identity, body):
-        slave = SlaveManager().find_slave(slave_identity)
-
+    def _h_worker_register_req(self, worker_identity, body):
         # extract some data from body using protocol.
         task_token = b"__THIS_IS_TASK_TOKEN__"
-        status = 'success'
-        error_code = None
 
         task = TaskManager().find_task(task_token)
-        if status == 'success':
-            # check if task's status == TaskStatus.STATUS_WAITING
-            # or(and)
-            # check task register req가 갔었는지 올바른 res인지 check가 필요.
-            # 여기부분외에도 여러부분에서 이런 처리가 필요할 것이다.
-            # 그러나 일단 이부분은 후순위로 두고 일단 빠른 구현을 목표로 한다.
-            # 추후에 구현완료 후 보완하도록 하자.
+        worker = WorkerManager().find_worker_having_task(task)
+        if worker.valid:
             pass
-        elif status == 'fail':
-            slave.delete_task(task)
-            TaskManager().redo_leak_task(task)
-            Scheduler().invoke()
         else:
-            pass
+            worker.get_lazy_identity(worker_identity)
+            # send "Worker Register Res" to worker using protocol
 
 
-    def _h_task_cancel_res(self, slave_identity, body):
-        # 뭘 해야하지... 흠.. 그냥 프로토콜에서 뺄까?
+    def _h_task_cancel_res(self, worker_identity, body):
+        # what I do??!
         pass
 
-    def _h_task_finish_req(self, slave_identity, body):
-        slave = SlaveManager().find_slave(slave_identity)
-
-        # extract some data from body using protocol.
-        task_token = b"__THIS_IS_TASK_TOKEN__"
-
-        task = TaskManager().find_task(task_token)
-        slave.delete_task(task)
-        TaskManager().change_task_status(task, TaskStatus.STATUS_COMPLETE)  # yes, there is no need of this code.
-        TaskManager().del_task(task)
-
-        # send "Task Finish Res" to slave using protocol. 근데 이거 굳히 필요한가..? 흠..
+    def _h_task_finish_req(self, worker_identity, body):
+        # send "Task Finish Req" to master using protocol
+        # send "Task Finish Res" to worker using protocol
+        pass
 
     __handler_dict = {
-        "heart_beat_res": _h_heart_beat_res,
-        "slave_register_req": _h_slave_register_req,
-        "task_register_res": _h_task_register_res,
+        "worker_register_req": _h_worker_register_req,
         "task_cancel_res": _h_task_cancel_res,
         "task_finish_req": _h_task_finish_req
     }

@@ -4,35 +4,40 @@ import random
 from ..library import SingletonMeta
 
 
-class WorkerToken(object):
-    def __init__(self, token : bytes):
-        self._token = token
-
-    def __eq__(self, other : 'WorkerToken'):
-        return self._token == other._token
-
-    @staticmethod
-    def generate_random_token(size : int = 512, chars : str = string.ascii_uppercase + string.digits) -> 'WorkerToken':
-        # this must be modified!!
-        raise NotImplementedError("This must be implemented!")
-        return WorkerToken(''.join(random.choice(chars) for _ in range(size)))
-
-
 class WorkerIdentity(object):
-    def __init__(self, addr):
+    def __init__(self, addr = None):
         self._addr = addr
+        if addr is None:
+            self._valid = False
+        else:
+            self._valid = True
 
     # I fire you if you override this.
     def __eq__(self, other):
-        return self._addr == other._addr
+        if self._valid and other._valid:
+            return self._addr == other._addr
+        else:
+            return False
+
+    def get_lazy_identity(self, worker_identity):
+        self._addr = worker_identity.addr
+        self._valid = worker_identity.valid
 
     @property
     def addr(self):
         return self._addr
 
+    @addr.setter
+    def addr(self, addr):
+        self._addr = addr
+
+    @property
+    def valid(self):
+        return self._valid
+
 
 class Worker(WorkerIdentity):
-    def __init__(self, addr, task):
+    def __init__(self, task, addr = None):
         super().__init__(addr)
         self._task = task
 
@@ -45,28 +50,17 @@ class WorkerManager(metaclass=SingletonMeta):
 
     def __init__(self):
         self._workers = []
-        self._dic_token_task = {}
         self._dic_task_worker = {}
 
     @property
     def count(self):
         return len(self._workers)
 
-    def add_token_task_to_dic(self, worker_token, task):
-        if worker_token in self._dic_token_task:
-            raise ValueError("Worker Token exists.")
-        else:
-            self._dic_token_task[worker_token] = task
-
-    def add_worker(self, worker, worker_token):
+    def add_worker(self, worker):
         if self.check_worker_existence(worker):
             raise ValueError("Duplicated Worker.")
-        elif not worker_token in self._dic_token_task:
-            raise ValueError("Invalid Worker Token.")
         else:
-            del self._dic_token_task[worker_token]
             self._workers.append(worker)
-            self._dic_task_worker[worker.task] = worker
 
     def del_worker(self, worker_identity):
         worker = self._from_generic_to_worker(worker_identity)

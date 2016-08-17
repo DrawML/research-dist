@@ -43,11 +43,14 @@ class ClientMessageHandler(metaclass=SingletonMeta):
 
         task = TaskManager().find_task(task_token)
         TaskManager().cancel_task(task)
-        slave = SlaveManager().find_slave_having_task(task)
-        slave.delete_task(task)
+        try:
+            slave = SlaveManager().find_slave_having_task(task)
+            slave.delete_task(task)
+            # send "Task Cancel Req" to slave using protocol
+        except ValueError:
+            pass
 
         # send "Task Cancel Res" to client using protocol.
-        # send "Task Cancel Req" to slave using protocol
 
     __handler_dict = {
         "task_register_req": _h_task_register_req,
