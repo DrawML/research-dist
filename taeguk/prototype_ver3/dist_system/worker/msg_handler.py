@@ -2,7 +2,7 @@
 from ..task.sleep_task import *
 from ..protocol import ResultReceiverAddress
 from ..library import SingletonMeta
-from .worker import *
+from .main import *
 from .task import *
 from .controller import *
 

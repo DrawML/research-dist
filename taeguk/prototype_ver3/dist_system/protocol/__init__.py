@@ -11,3 +11,7 @@ class ResultReceiverAddress(object):
             'ip' : self._ip,
             'port' : self._port
         }
+
+    def to_zeromq_addr(self):
+        # need to refine.
+        return "{0}//{1}:{2}".format(self._type, self._ip, self._port)

@@ -64,7 +64,7 @@ async def run_worker(context : Context, slave_addr, serialized_data : bytes):
 
     asyncio.wait([
         asyncio.ensure_future(slave_conn.run()),
-        asyncio.ensure_future(do_task(TaskInformation.from_bytes(serialized_data)))
+        asyncio.ensure_future(do_task(context, TaskInformation.from_bytes(serialized_data)))
     ])
 
 
